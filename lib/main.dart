@@ -1,16 +1,14 @@
 // Copyright (c) 2026 yuumei-02. All Rights Reserved.
 // See the license file for more information.
 
-// Todo list
-// Expanded help command
-
 import "dart:convert";
 import "dart:io";
 
 String home = "";
 String config_path = "";
 bool send_out_notifs = false;
-const String version = "0.0.1";
+const String version = "1.0.0";
+bool verbose = false;
 
 void get_home_and_config_path() {
   String? home_path = Platform.environment["HOME"];
@@ -54,7 +52,9 @@ class Session {
 
       return Session(start, end, duration);
     } catch (e) {
-      report_and_abort("Failed to parse session, reason: \"$e\"");
+      String msg = "Failed to parse session";
+      if (verbose) msg += ", reason: \"$e\"";
+      report_and_abort(msg);
     }
   }
 
@@ -86,7 +86,9 @@ class Item {
 
       return Item(name, active, started, sessions);
     } catch (e) {
-      report_and_abort("Failed to parse item, reason: \"$e\"");
+      String msg = "Failed to parse item";
+      if (verbose) msg += ", reason: \"$e\"";
+      report_and_abort(msg);
     }
   }
 
@@ -95,7 +97,9 @@ class Item {
       File item_file = File(config_path + "/${name}.json");
       return Item.parse(item_file.readAsStringSync());
     } catch (e) {
-      report_and_abort("Failed to create item, reason: \"$e\"");
+      String msg = "Failed to create item";
+      if (verbose) msg += ", reason: \"$e\"";
+      report_and_abort(msg);
     }
   }
 
@@ -123,7 +127,9 @@ class Item {
 
       item_file.writeAsStringSync(this.serialize());
     } catch (e) {
-      report_and_abort("Failed to save item \"$name\" to file, reason: \"$e\"");
+      String msg = "Failed to save item \"$name\" to file";
+      if (verbose) msg += ", reason: \"$e\"";
+      report_and_abort(msg);
     }
   }
 
@@ -170,7 +176,9 @@ void check_create_config() {
       config.createSync(recursive: true);
     }
   } catch (e) {
-    report_and_abort("Failed to create config, reason: \"$e\"");
+    String msg = "Failed to create config";
+    if (verbose) msg += ", reason: \"$e\"";
+    report_and_abort(msg);
   }
 }
 
@@ -181,7 +189,8 @@ void help() {
   print("   timetracker command <args?>");
   print("");
   print("Options:");
-  print("   -n   Also send out command results as a system notification");
+  print("   -n   Also send out command results as a system notification.");
+  print("   -v   Enable verbose error reporting.");
   print("");
   print("Commands:");
   print("   help <command?>         This help message.");
@@ -192,8 +201,6 @@ void help() {
   print("   end-session <name>      Stop a session.");
   print("   toggle-session <name>   Toggle the status of a session.");
   print("   session-status <name>   Returns \"active\" or \"inactive\" based on whether or not the session is active.");
-  print("");
-  print("See \"timetracker help <command>\" for more information on a specific command.");
 }
 
 void create_item(String name) {
@@ -228,13 +235,15 @@ void main(List<String> args) {
 
   List<String> new_args = [];
   for (String arg in args) {
-    if (arg == '-n') {
-      send_out_notifs = true;
-    } else {
-      new_args.add(arg);
+    switch (arg) {
+      case "-n":
+        send_out_notifs = true;
+      case "-v":
+        verbose = true;
+      default:
+        new_args.add(arg);
     }
   }
-
   args = new_args;
 
   final expected_arg_count = (int n) {
