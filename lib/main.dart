@@ -3,8 +3,6 @@
 
 // Todo list
 // Expanded help command
-// Create item
-// Delete item
 // start session
 // end session
 // toggle session
@@ -150,6 +148,17 @@ void create_item(String config_path, String name) {
   }
 }
 
+void delete_item(String config_path, String name) {
+  try {
+    File item_file = File(config_path + "/${name}.json");
+    if (!item_file.existsSync()) return;
+
+    item_file.deleteSync();
+  } catch (e) {
+    report_and_abort("Failed to create item, reason: \"$e\"");
+  }
+}
+
 void print_version() {
   send_notification("Version", version);
   print(version);
@@ -188,6 +197,10 @@ void main(List<String> args) {
        expected_arg_count(2);
        Item item = Item.parse(File("/home/shjesna/.config/timetracker/emacs.json").readAsStringSync());
        print(item);
+
+    case "delete-item":
+       expected_arg_count(2);
+       delete_item(config_path, args[1]);
     
     case "create-item":
        expected_arg_count(2);
