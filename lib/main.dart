@@ -3,14 +3,24 @@
 
 // Todo list
 // Expanded help command
-// session status
 
 import "dart:convert";
 import "dart:io";
 
 String home = "";
+String config_path = "";
 bool send_out_notifs = false;
 const String version = "0.0.1";
+
+void get_home_and_config_path() {
+  String? home_path = Platform.environment["HOME"];
+  if (home_path == null) {
+    report_and_abort("Failed to find the \"HOME\" envirnment variable");
+  }
+
+  home = home_path;
+  config_path = "${home}/.config/timetracker";
+}
 
 void notify(String message) {
   send_notification("Timetracker", message);
@@ -80,7 +90,7 @@ class Item {
     }
   }
 
-  static Item parse_from_file(String config_path, String name) {
+  static Item parse_from_file(String name) {
     try {
       File item_file = File(config_path + "/${name}.json");
       return Item.parse(item_file.readAsStringSync());
@@ -104,7 +114,7 @@ class Item {
     return serialized + "]}";
   }
 
-  void save_to_file(String config_path) {
+  void save_to_file() {
     try {
       File item_file = File(config_path + "/${name}.json");
       if (!item_file.existsSync()) {
@@ -117,16 +127,16 @@ class Item {
     }
   }
 
-  void start_session(String config_path) {
+  void start_session() {
     if (active) return;
     active = true;
     started = DateTime.now();
-    this.save_to_file(config_path);
+    this.save_to_file();
 
     notify("$name session started.");
   }
 
-  void end_session(String config_path) {
+  void end_session() {
     if (!active) return;
 
     DateTime now = DateTime.now();
@@ -134,15 +144,15 @@ class Item {
     active = false;
     started = null;
 
-    this.save_to_file(config_path);
+    this.save_to_file();
     notify("$name session ended after ${format_seconds(sessions.last.duration_in_seconds)}.");
   }
 
   void toggle_session(String config_path) {
     if (active) {
-      this.end_session(config_path);
+      this.end_session();
     } else {
-      this.start_session(config_path);
+      this.start_session();
     }
   }
 }
@@ -152,7 +162,7 @@ void send_notification(String title, String body) {
   Process.runSync("notify-send", ["-a", "timetracker", title, body]);
 }
 
-void check_create_config(String config_path) {
+void check_create_config() {
   Directory config = Directory(config_path);
 
   try {
@@ -162,15 +172,6 @@ void check_create_config(String config_path) {
   } catch (e) {
     report_and_abort("Failed to create config, reason: \"$e\"");
   }
-}
-
-void get_home_path() {
-  String? home_path = Platform.environment["HOME"];
-  if (home_path == null) {
-    report_and_abort("Failed to find the \"HOME\" envirnment variable");
-  }
-
-  home = home_path;
 }
 
 void help() {
@@ -195,12 +196,12 @@ void help() {
   print("See \"timetracker help <command>\" for more information on a specific command.");
 }
 
-void create_item(String config_path, String name) {
+void create_item(String name) {
   Item item = Item(name, false, null, []);
-  item.save_to_file(config_path);
+  item.save_to_file();
 }
 
-void delete_item(String config_path, String name) {
+void delete_item(String name) {
   try {
     File item_file = File(config_path + "/${name}.json");
     if (!item_file.existsSync()) return;
@@ -222,9 +223,8 @@ void main(List<String> args) {
     exit(1);
   }
 
-  get_home_path();
-  String config_path = "${home}/.config/timetracker";
-  check_create_config(config_path);
+  get_home_and_config_path();
+  check_create_config();
 
   List<String> new_args = [];
   for (String arg in args) {
@@ -247,26 +247,31 @@ void main(List<String> args) {
   switch (args.first) {
     case "start-session":
       expected_arg_count(2);
-      Item item = Item.parse_from_file(config_path, args[1]);
-      item.start_session(config_path);
+      Item item = Item.parse_from_file(args[1]);
+      item.start_session();
 
     case "end-session":
       expected_arg_count(2);
-      Item item = Item.parse_from_file(config_path, args[1]);
-      item.end_session(config_path);
+      Item item = Item.parse_from_file(args[1]);
+      item.end_session();
 
     case "toggle-session":
       expected_arg_count(2);
-      Item item = Item.parse_from_file(config_path, args[1]);
+      Item item = Item.parse_from_file(args[1]);
       item.toggle_session(config_path);
+
+    case "session-status":
+      expected_arg_count(2);
+      Item item = Item.parse_from_file(args[1]);
+      print(item.active == true ? "active" : "inactive");
 
     case "delete-item":
       expected_arg_count(2);
-      delete_item(config_path, args[1]);
+      delete_item(args[1]);
 
     case "create-item":
       expected_arg_count(2);
-      create_item(config_path, args[1]);
+      create_item(args[1]);
 
     case "version":
       print_version();
