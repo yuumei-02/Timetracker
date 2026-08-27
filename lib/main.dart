@@ -31,6 +31,10 @@ Never report_and_abort(String message) {
   exit(1);
 }
 
+String format_datetime(DateTime time) {
+  return time.toString().split('.').first;
+}
+
 String format_seconds(int seconds) {
   if (seconds < 60) return "$seconds seconds";
   if (seconds < 3600) return "${seconds / 60} minutes";
@@ -170,6 +174,18 @@ class Item {
 
     return hours;
   }
+
+  void list_session() {
+    int i = 0;
+    for (Session session in sessions) {
+      i += 1;
+      print("$name session $i/${sessions.length}");
+      print("From: ${format_datetime(session.start)}");
+      print("To:   ${format_datetime(session.end)}");
+      print("Duration: ${format_seconds(session.duration_in_seconds)}");
+      print("");
+    }
+  }
 }
 
 void send_notification(String title, String body) {
@@ -211,6 +227,7 @@ void help() {
   print("   end-session <item>      Stop a session.");
   print("   toggle-session <item>   Toggle the status of a session.");
   print("   session-status <item>   Returns \"active\" or \"inactive\" based on whether or not the session is active.");
+  print("   list-sessions <item>    Prints out a list containing all the sessions of an item.");
 }
 
 void create_item(String name) {
@@ -296,6 +313,11 @@ void main(List<String> args) {
       expected_arg_count(2);
       Item item = Item.parse_from_file(args[1]);
       print("${item.time_total().toStringAsFixed(1)}");
+
+    case "list-sessions":
+      expected_arg_count(2);
+      Item item = Item.parse_from_file(args[1]);
+      item.list_session();
 
     case "version":
       print_version();
