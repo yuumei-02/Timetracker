@@ -1,0 +1,8 @@
+name: astra
+description: The Astra official compiler
+version: 1.0.0+1
+publish_to: none
+
+environment:
+  sdk: ^3.2.0
+
