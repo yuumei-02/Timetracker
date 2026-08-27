@@ -10,11 +10,85 @@
 // toggle session
 // session status
 
+import "dart:convert";
 import "dart:io";
+
+Never report_and_abort(String message) {
+  send_notification("Error", message);
+  print("[ERROR]: $message");
+  exit(1);
+}
 
 String home = "";
 bool send_out_notifs = false;
 const String version = "0.0.1";
+
+class Session {
+  DateTime start;
+  DateTime end;
+  int duration_in_seconds;
+  
+  Session(this.start, this.end, this.duration_in_seconds);
+
+  static Session parse_from_map(Map result) {
+    try {
+      int duration   = result["duration"];
+      DateTime start = DateTime.parse(result["start"]);
+      DateTime end   = DateTime.parse(result["end"]);
+
+      return Session(start, end, duration);
+    } catch (e) {
+      report_and_abort("Failed to parse session, reason: \"$e\"");
+    }
+  }
+
+  String serialize() =>
+     "{\"duration\": $duration_in_seconds, \"start\": \"${start.toIso8601String()}\", \"end\": \"${end.toIso8601String()}}\"";
+}
+
+class Item {
+  String name;
+  bool active;
+  DateTime? started;
+  List<Session> sessions;
+
+  Item(this.name, this.active, this.started, this.sessions);
+
+  static Item parse(String serialized) {
+    try {
+       Map result = jsonDecode(serialized);
+
+       String name           = result["name"];
+       bool   active         = result["active"];
+       String started_string = result["started"];
+       DateTime? started     = DateTime.tryParse(started_string);
+       List<Session> sessions = [];
+
+       for (Map session in result["sessions"]) {
+         sessions.add(Session.parse_from_map(session));
+       }
+
+       return Item(name, active, started, sessions);
+    } catch (e) {
+      report_and_abort("Failed to parse item, reason: \"$e\"");
+    }
+  }
+
+  String serialize() {
+    String serialized = "{\"name\": \"$name\", \"active\": $active, \"started\": \"${started ?? ""}\", \"sessions\": [";
+
+    int i = 0;
+    for (Session session in sessions) {
+      serialized += session.serialize();
+      if (i + 1 < sessions.length) {
+        serialized += ", ";
+      }
+      i += 1;
+    }
+
+    return serialized + "]}";
+  }
+}
 
 void send_notification(String title, String body) {
    if (!send_out_notifs) return;
@@ -29,16 +103,14 @@ void check_create_config(String config_path) {
       config.createSync(recursive: true);
     }
   } catch (e) {
-    send_notification("Error", "Failed to create config, reason: \"$e\"");
-    exit(1);
+    report_and_abort("Failed to create config, reason: \"$e\"");
   }
 }
 
 void get_home_path() {
   String? home_path = Platform.environment["HOME"];
   if (home_path == null) {
-    send_notification("Error", "Failed to find the \"HOME\" envirnment variable");
-    exit(1);
+    report_and_abort("Failed to find the \"HOME\" envirnment variable");
   }
 
   home = home_path;
@@ -66,6 +138,18 @@ void help() {
   print("See \"timetracker help <command>\" for more information on a specific command.");
 }
 
+void create_item(String config_path, String name) {
+  try {
+    File item_file = File(config_path + "/${name}.json");
+    if (item_file.existsSync()) return;
+
+    item_file.createSync();
+    item_file.writeAsStringSync(Item(name, false, null, []).serialize());
+  } catch (e) {
+    report_and_abort("Failed to create item, reason: \"$e\"");
+  }
+}
+
 void print_version() {
   send_notification("Version", version);
   print(version);
@@ -81,18 +165,36 @@ void main(List<String> args) {
   String config_path = "${home}/.config/timetracker";
   check_create_config(config_path);
 
+  List<String> new_args = [];
   for (String arg in args) {
     if (arg == '-n') {
       send_out_notifs = true;
+    } else {
+      new_args.add(arg);
     }
   }
 
+  args = new_args;
+
+  final expected_arg_count = (int n) {
+    if (n > args.length) {
+      help();
+      report_and_abort("Unexpected amount of arguments");
+    }
+  };
+
   switch (args.first) {
+    case "parse-item":
+       expected_arg_count(2);
+       Item item = Item.parse(File("/home/shjesna/.config/timetracker/emacs.json").readAsStringSync());
+       print(item);
+    
+    case "create-item":
+       expected_arg_count(2);
+       create_item(config_path, args[1]);
     case "version":
        print_version();
     default:
       help();
   }
-
-  send_notification("zhyivannye", "miratny");
 }
