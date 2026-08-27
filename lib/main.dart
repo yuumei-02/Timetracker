@@ -7,7 +7,7 @@ import "dart:io";
 String home = "";
 String config_path = "";
 bool send_out_notifs = false;
-const String version = "1.0.0";
+const String version = "1.1.0";
 bool verbose = false;
 
 void get_home_and_config_path() {
@@ -161,6 +161,15 @@ class Item {
       this.start_session();
     }
   }
+
+  double time_total() {
+    double hours = 0;
+    for (Session session in sessions) {
+      hours += session.duration_in_seconds / 3600;
+    }
+
+    return hours;
+  }
 }
 
 void send_notification(String title, String body) {
@@ -196,11 +205,12 @@ void help() {
   print("   help <command?>         This help message.");
   print("   version                 Print out the current version.");
   print("   create-item <name>      Create a new item. Items are things you want to track time of.");
-  print("   delete-item <name>      Delete an item.");
-  print("   start-session <name>    Start a session.");
-  print("   end-session <name>      Stop a session.");
-  print("   toggle-session <name>   Toggle the status of a session.");
-  print("   session-status <name>   Returns \"active\" or \"inactive\" based on whether or not the session is active.");
+  print("   delete-item <item>      Delete an item.");
+  print("   time-total <item>       Returns the total amount of hours time spend on an item as a double with 1 point of precision.");
+  print("   start-session <item>    Start a session.");
+  print("   end-session <item>      Stop a session.");
+  print("   toggle-session <item>   Toggle the status of a session.");
+  print("   session-status <item>   Returns \"active\" or \"inactive\" based on whether or not the session is active.");
 }
 
 void create_item(String name) {
@@ -281,6 +291,11 @@ void main(List<String> args) {
     case "create-item":
       expected_arg_count(2);
       create_item(args[1]);
+
+    case "time-total":
+      expected_arg_count(2);
+      Item item = Item.parse_from_file(args[1]);
+      print("${item.time_total().toStringAsFixed(1)}");
 
     case "version":
       print_version();
