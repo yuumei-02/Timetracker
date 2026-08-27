@@ -3,13 +3,19 @@
 
 // Todo list
 // Expanded help command
-// start session
-// end session
-// toggle session
 // session status
 
 import "dart:convert";
 import "dart:io";
+
+String home = "";
+bool send_out_notifs = false;
+const String version = "0.0.1";
+
+void notify(String message) {
+  send_notification("Timetracker", message);
+  print(message);
+}
 
 Never report_and_abort(String message) {
   send_notification("Error", message);
@@ -17,22 +23,24 @@ Never report_and_abort(String message) {
   exit(1);
 }
 
-String home = "";
-bool send_out_notifs = false;
-const String version = "0.0.1";
+String format_seconds(int seconds) {
+  if (seconds < 60) return "$seconds seconds";
+  if (seconds < 3600) return "${seconds / 60} minutes";
+  return "${seconds / 3600} hours";
+}
 
 class Session {
   DateTime start;
   DateTime end;
   int duration_in_seconds;
-  
+
   Session(this.start, this.end, this.duration_in_seconds);
 
   static Session parse_from_map(Map result) {
     try {
-      int duration   = result["duration"];
+      int duration = result["duration"];
       DateTime start = DateTime.parse(result["start"]);
-      DateTime end   = DateTime.parse(result["end"]);
+      DateTime end = DateTime.parse(result["end"]);
 
       return Session(start, end, duration);
     } catch (e) {
@@ -41,7 +49,7 @@ class Session {
   }
 
   String serialize() =>
-     "{\"duration\": $duration_in_seconds, \"start\": \"${start.toIso8601String()}\", \"end\": \"${end.toIso8601String()}}\"";
+      "{\"duration\": $duration_in_seconds, \"start\": \"${start.toIso8601String()}\", \"end\": \"${end.toIso8601String()}\"}";
 }
 
 class Item {
@@ -54,21 +62,30 @@ class Item {
 
   static Item parse(String serialized) {
     try {
-       Map result = jsonDecode(serialized);
+      Map result = jsonDecode(serialized);
 
-       String name           = result["name"];
-       bool   active         = result["active"];
-       String started_string = result["started"];
-       DateTime? started     = DateTime.tryParse(started_string);
-       List<Session> sessions = [];
+      String name = result["name"];
+      bool active = result["active"];
+      String started_string = result["started"];
+      DateTime? started = DateTime.tryParse(started_string);
+      List<Session> sessions = [];
 
-       for (Map session in result["sessions"]) {
-         sessions.add(Session.parse_from_map(session));
-       }
+      for (Map session in result["sessions"]) {
+        sessions.add(Session.parse_from_map(session));
+      }
 
-       return Item(name, active, started, sessions);
+      return Item(name, active, started, sessions);
     } catch (e) {
       report_and_abort("Failed to parse item, reason: \"$e\"");
+    }
+  }
+
+  static Item parse_from_file(String config_path, String name) {
+    try {
+      File item_file = File(config_path + "/${name}.json");
+      return Item.parse(item_file.readAsStringSync());
+    } catch (e) {
+      report_and_abort("Failed to create item, reason: \"$e\"");
     }
   }
 
@@ -86,11 +103,53 @@ class Item {
 
     return serialized + "]}";
   }
+
+  void save_to_file(String config_path) {
+    try {
+      File item_file = File(config_path + "/${name}.json");
+      if (!item_file.existsSync()) {
+        item_file.createSync();
+      }
+
+      item_file.writeAsStringSync(this.serialize());
+    } catch (e) {
+      report_and_abort("Failed to save item \"$name\" to file, reason: \"$e\"");
+    }
+  }
+
+  void start_session(String config_path) {
+    if (active) return;
+    active = true;
+    started = DateTime.now();
+    this.save_to_file(config_path);
+
+    notify("$name session started.");
+  }
+
+  void end_session(String config_path) {
+    if (!active) return;
+
+    DateTime now = DateTime.now();
+    sessions.add(Session(started!, now, now.difference(started!).inSeconds));
+    active = false;
+    started = null;
+
+    this.save_to_file(config_path);
+    notify("$name session ended after ${format_seconds(sessions.last.duration_in_seconds)}.");
+  }
+
+  void toggle_session(String config_path) {
+    if (active) {
+      this.end_session(config_path);
+    } else {
+      this.start_session(config_path);
+    }
+  }
 }
 
 void send_notification(String title, String body) {
-   if (!send_out_notifs) return;
-   Process.runSync("notify-send", ["-a", "timetracker", title, body]);
+  if (!send_out_notifs) return;
+  Process.runSync("notify-send", ["-a", "timetracker", title, body]);
 }
 
 void check_create_config(String config_path) {
@@ -137,15 +196,8 @@ void help() {
 }
 
 void create_item(String config_path, String name) {
-  try {
-    File item_file = File(config_path + "/${name}.json");
-    if (item_file.existsSync()) return;
-
-    item_file.createSync();
-    item_file.writeAsStringSync(Item(name, false, null, []).serialize());
-  } catch (e) {
-    report_and_abort("Failed to create item, reason: \"$e\"");
-  }
+  Item item = Item(name, false, null, []);
+  item.save_to_file(config_path);
 }
 
 void delete_item(String config_path, String name) {
@@ -169,7 +221,7 @@ void main(List<String> args) {
     help();
     exit(1);
   }
-  
+
   get_home_path();
   String config_path = "${home}/.config/timetracker";
   check_create_config(config_path);
@@ -193,20 +245,32 @@ void main(List<String> args) {
   };
 
   switch (args.first) {
-    case "parse-item":
-       expected_arg_count(2);
-       Item item = Item.parse(File("/home/shjesna/.config/timetracker/emacs.json").readAsStringSync());
-       print(item);
+    case "start-session":
+      expected_arg_count(2);
+      Item item = Item.parse_from_file(config_path, args[1]);
+      item.start_session(config_path);
+
+    case "end-session":
+      expected_arg_count(2);
+      Item item = Item.parse_from_file(config_path, args[1]);
+      item.end_session(config_path);
+
+    case "toggle-session":
+      expected_arg_count(2);
+      Item item = Item.parse_from_file(config_path, args[1]);
+      item.toggle_session(config_path);
 
     case "delete-item":
-       expected_arg_count(2);
-       delete_item(config_path, args[1]);
-    
+      expected_arg_count(2);
+      delete_item(config_path, args[1]);
+
     case "create-item":
-       expected_arg_count(2);
-       create_item(config_path, args[1]);
+      expected_arg_count(2);
+      create_item(config_path, args[1]);
+
     case "version":
-       print_version();
+      print_version();
+
     default:
       help();
   }
