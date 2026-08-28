@@ -7,7 +7,7 @@ import "dart:io";
 String home = "";
 String config_path = "";
 bool send_out_notifs = false;
-const String version = "1.1.0";
+const String version = "1.1.1";
 bool verbose = false;
 
 void get_home_and_config_path() {
@@ -37,8 +37,8 @@ String format_datetime(DateTime time) {
 
 String format_seconds(int seconds) {
   if (seconds < 60) return "$seconds seconds";
-  if (seconds < 3600) return "${seconds / 60} minutes";
-  return "${seconds / 3600} hours";
+  if (seconds < 3600) return "${(seconds / 60).toStringAsFixed(1)} minutes";
+  return "${(seconds / 3600).toStringAsFixed(1)} hours";
 }
 
 class Session {
