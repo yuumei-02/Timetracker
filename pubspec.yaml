@@ -1,5 +1,5 @@
-name: astra
-description: The Astra official compiler
+name: Timetracker
+description: A timetracking utility for posix systems
 version: 1.0.0+1
 publish_to: none
 
