@@ -102,6 +102,21 @@ class Item {
       }
    }
 
+   void prune({ int? prune_up_to_minute }) {
+      config.load_config();
+      int prune_seconds = prune_up_to_minute == null
+         ? (config.get_prune_minutes() ?? 1) * 60
+         : prune_up_to_minute * 60;
+
+      for (int i = sessions.length - 1; i >= 0; --i) {
+         if (sessions[i].duration_in_seconds <= prune_seconds) {
+            sessions.removeAt(i);
+         }
+      }
+
+      save_to_file();
+   }
+
    void start_session() {
       if (active) return;
       active = true;

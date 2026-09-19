@@ -58,5 +58,16 @@ class Config {
          report_and_abort("Failed to save the config to the config file, reason: $e");
       }
    }
+
+   int? get_prune_minutes() {
+      if (contents == null) return null;
+
+      dynamic? prune_minutes = contents!["prune_up_to_minute"];
+      if (prune_minutes == null || prune_minutes is! int) {
+         return null;
+      }
+
+      return prune_minutes as int;
+   }
 }
 
